@@ -1,0 +1,21 @@
+<configuration>
+  <input>
+    <net-file value="changi.net.xml"/>
+    <route-files value="changi_full.rou.xml"/>
+  </input>
+
+  <time>
+    <begin value="0"/>
+    <end value="14400"/>
+  </time>
+
+  <report>
+    <verbose value="true"/>
+    <no-step-log value="true"/>
+  </report>
+
+  <output>
+    <tripinfo-output value="changi_full.tripinfo.xml"/>
+    <fcd-output value="changi_full_fcd.xml"/>
+  </output>
+</configuration>  

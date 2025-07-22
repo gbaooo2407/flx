@@ -1,0 +1,21 @@
+<configuration>
+  <input>
+    <net-file value="nus.net.xml"/>
+    <route-files value="nus_full.rou.xml"/>
+  </input>
+
+  <time>
+    <begin value="0"/>
+    <end value="14400"/>
+  </time>
+
+  <report>
+    <verbose value="true"/>
+    <no-step-log value="true"/>
+  </report>
+
+  <output>
+    <tripinfo-output value="nus_full.tripinfo.xml"/>
+    <fcd-output value="nus_full_fcd.xml"/>
+  </output>
+</configuration>  

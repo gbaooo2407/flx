@@ -1,0 +1,21 @@
+{
+  "odata.metadata": "https://datamall2.mytransport.sg/ltaodataservice/$metadata#FaultyTrafficLights",
+  "value": [
+    {
+      "AlarmID": "GLSC_TA_2_16455_9517855",
+      "NodeID": "174639",
+      "Type": "2",
+      "StartDate": "",
+      "EndDate": "",
+      "Message": "(21/07)22:51 Black Out at PIONEER RD/JLN BUROH/TG KLING RD."
+    },
+    {
+      "AlarmID": "GLSC_13_5613_9517453",
+      "NodeID": "5444",
+      "Type": "13",
+      "StartDate": "",
+      "EndDate": "",
+      "Message": "(21/07)19:30 Flashing Yellow at FARRER RD/EMPRESS RD NR FARRER RD MRT."
+    }
+  ]
+}

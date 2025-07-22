@@ -1,0 +1,11 @@
+<configuration>
+    <input>
+        <net-file value="D:/flx-master/flx-master/data/raw/sumo/cbd/cbd.net.xml"/>
+        <route-files value="D:/flx-master/flx-master/data/raw/sumo/cbd/cbd.weather_adjusted.rou.xml"/>
+    </input>
+
+    <time>
+        <begin value="0"/>
+        <end value="3600"/>
+    </time>
+</configuration>

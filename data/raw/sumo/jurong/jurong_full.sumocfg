@@ -1,0 +1,21 @@
+<configuration>
+  <input>
+    <net-file value="jurong.net.xml"/>
+    <route-files value="jurong_full.rou.xml"/>
+  </input>
+
+  <time>
+    <begin value="0"/>
+    <end value="14400"/>
+  </time>
+
+  <report>
+    <verbose value="true"/>
+    <no-step-log value="true"/>
+  </report>
+
+  <output>
+    <tripinfo-output value="jurong_full.tripinfo.xml"/>
+    <fcd-output value="jurong_full_fcd.xml"/>
+  </output>
+</configuration>  
