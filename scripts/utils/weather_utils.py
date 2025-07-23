@@ -84,3 +84,21 @@ def fetch_weather():
     except Exception as e:
         print("❌ fetch_weather error:", e)
         return {}
+    
+def get_weather_factor(weather_path_pattern="data/raw/weather_data/weather_*.json"):
+    import glob, json
+    files = sorted(glob.glob(weather_path_pattern))
+    if not files:
+        return 1.0
+    try:
+        with open(files[-1]) as f:
+            data = json.load(f)
+            rain = data["hourly"]["precipitation"][0]
+            temp = data["hourly"]["temperature_2m"][0]
+
+            factor = max(0.5, 1 - rain / 100.0)
+            if temp > 30:
+                factor *= 0.95
+            return factor
+    except:
+        return 1.0

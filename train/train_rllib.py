@@ -4,39 +4,55 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from scripts.delivery_env import DeliveryMultiAgentEnv
 from scripts.agent_loader import load_agents_from_json_multi_order
 from ray.rllib.env.wrappers.multi_agent_env_compatibility import MultiAgentEnvCompatibility
+from ray.tune.registry import register_env
 import gymnasium as gym
 from gymnasium.spaces import Discrete, Box
 import numpy as np
-from ray.tune.registry import register_env
+import json
+import os  
 
 # === Thông tin môi trường ===
 ZONE = "cbd"
-NET_FILE = f"data/raw/sumo/{ZONE}/{ZONE}.net.xml"
-ROUTE_FILE = f"data/raw/sumo/{ZONE}/{ZONE}.weather_adjusted.rou.xml"
-SUMOCFG_FILE = f"data/raw/sumo/{ZONE}/{ZONE}.sumocfg"
-DELIVERY_PATH = f"data/raw/demand/{ZONE}/delivery_requests.json"
+NET_FILE = os.path.abspath(f"data/raw/sumo/{ZONE}/{ZONE}.net.xml")
+ROUTE_FILE = os.path.abspath(f"data/raw/sumo/{ZONE}/{ZONE}.weather_adjusted.rou.xml")
+SUMOCFG_FILE = os.path.abspath(f"data/raw/sumo/{ZONE}/{ZONE}.sumocfg")
+DELIVERY_PATH = os.path.abspath(f"data/raw/demand/{ZONE}/delivery_requests.json")
 
-# === Load agent config ===
-agents_config = load_agents_from_json_multi_order(DELIVERY_PATH)
+# === Load agent config từ JSON ===
+with open(DELIVERY_PATH) as f:
+    delivery_data = json.load(f)
 
-# === Env register cho RLlib ===
+if isinstance(delivery_data, dict):
+    agents_config = delivery_data
+elif isinstance(delivery_data, list):
+    agents_config = load_agents_from_json_multi_order(DELIVERY_PATH)
+else:
+    raise ValueError("❌ Định dạng delivery_requests.json không hợp lệ.")
+
+# === Định nghĩa hàm tạo môi trường và bọc MultiAgentEnvCompatibility ===
 def env_creator(config):
-    # Kiểm tra agents_config trước khi tạo env
-    if not agents_config:
-        raise ValueError("agents_config is empty!")
-        
     raw_env = DeliveryMultiAgentEnv(
         net_file=NET_FILE,
         route_file=ROUTE_FILE,
         sumocfg_file=SUMOCFG_FILE,
         agents_config=agents_config,
         gui=False,
-        max_steps=3600,
+        max_steps=1000,
     )
-    return MultiAgentEnvCompatibility(raw_env)
 
-# Đăng ký môi trường multi-agent
+    # ✅ Quan trọng: confirm tại đây
+    print("🧪 env_creator _agent_ids:", raw_env._agent_ids)
+
+    return raw_env
+test_env = env_creator({})
+obs_space = test_env.observation_space
+action_space = test_env.action_space
+
+# === Đăng ký môi trường RLlib ===
 register_env("delivery-marl", env_creator)
+def policy_mapping_fn(agent_id, episode=None, worker=None, **kwargs):
+    return "default_policy"
+
 
 # === Cấu hình PPO ===
 config = (
@@ -44,20 +60,24 @@ config = (
     .environment("delivery-marl", env_config={})
     .framework("torch")
     .training(
-        train_batch_size=512, 
-        lr=1e-4, 
-        gamma=0.99, 
-        model={"fcnet_hiddens": [128, 64]}
+        train_batch_size=512,
+        lr=1e-4,
+        gamma=0.99,
+        model={"fcnet_hiddens": [128, 64]},
     )
     .multi_agent(
-        policies={
-            # Policy cho từng agent
-            "default_policy": (None, Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float32), Discrete(8), {}),
-        },
-        policy_mapping_fn=lambda agent_id: "default_policy",  # Sử dụng policy mặc định cho tất cả agents
+        policies={"default_policy": (None, obs_space, action_space, {})},
+        policy_mapping_fn=policy_mapping_fn,
     )
-    .rollouts(num_rollout_workers=2)  # Điều chỉnh số lượng workers (môi trường) song song cho huấn luyện
+    .rollouts(
+        num_rollout_workers=0,        # Đặt = 0 để dễ debug, đổi sang >0 khi đã ổn định
+        batch_mode="complete_episodes"
+    )  
 )
 
-# === Huấn luyện mô hình ===
-tune.run("PPO", config=config)
+# === Khởi động Ray và huấn luyện ===
+ray.init(ignore_reinit_error=True)
+
+tune.run("PPO", 
+         config=config,
+         stop={"training_iteration": 5})

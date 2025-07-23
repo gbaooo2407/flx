@@ -1,99 +1,55 @@
-import random
 import json
-import os
-from sumolib.net import readNet
+import random
+import sumolib
+from collections import defaultdict
 
-def generate_deliveries(
-    net_path,
-    num_deliveries=1000,
-    start_hour=8,
-    end_hour=12,
-    output_path=None,
-    seed=42,
-    min_distance=500,
-    max_distance=10000
-):
-    # Ensure correct file path
-    net_path = os.path.abspath(net_path).replace("\\", "/")
-    print("Loading network from:", net_path)
-    
-    # Check if the file exists
-    if not os.path.isfile(net_path):
-        raise FileNotFoundError(f"File {net_path} not found.")
-    
-    # Open the net file (ensure it's not treated as a gzip)
-    net = readNet(net_path)  # Read the file as a regular XML file, not gzipped
-    
-    edges = [e for e in net.getEdges() if not e.isSpecial()]
-    deliveries = []
-    used_pairs = set()
-    random.seed(seed)
+# ⚙️ Tham số
+NET_FILE = "data/raw/sumo/cbd/cbd.net.xml"
+OUTPUT_PATH = "data/raw/demand/cbd/delivery_requests.json"
+NUM_AGENTS = 10
+ORDERS_PER_AGENT = 3
+MAX_DEPART = 3600  # tối đa 1 tiếng
+VEHICLE_SPEED = 10.0  # m/s
 
-    max_trials = num_deliveries * 100
-    trials = 0
+# 📍 Load network
+net = sumolib.net.readNet(NET_FILE)
+edges = [e for e in net.getEdges() if not e.getID().startswith(":")]
 
-    while len(deliveries) < num_deliveries and trials < max_trials:
-        from_edge = random.choice(edges)
-        to_edge = random.choice(edges)
-        key = (from_edge.getID(), to_edge.getID())
-        if from_edge.getID() == to_edge.getID() or key in used_pairs:
-            trials += 1
-            continue
-        path, dist = net.getShortestPath(from_edge, to_edge)
-        if path is None or dist < min_distance or dist > max_distance:
-            trials += 1
+# 🛵 Tạo đơn hàng
+agents = defaultdict(list)
+for i in range(NUM_AGENTS):
+    for j in range(ORDERS_PER_AGENT):
+        attempts = 0
+        while True:
+            from_edge = random.choice(edges)
+            to_edge = random.choice(edges)
+            if from_edge != to_edge:
+                path = net.getShortestPath(from_edge, to_edge)
+                if path and path[0]:  # path[0] là danh sách edges
+                    break
+            attempts += 1
+            if attempts > 10:
+                print(f"⚠️ Bỏ qua delivery agent{i}_order{j} do không tìm được path.")
+                break
+
+        if attempts > 10:
             continue
 
-        total_time = 0.0
-        for edge in path:
-            length = edge.getLength()
-            speed = edge.getSpeed()
-            if speed > 0:
-                total_time += length / speed
+        distance = sum(edge.getLength() for edge in path[0])
+        est_time = distance / VEHICLE_SPEED
+        depart = random.randint(0, MAX_DEPART)
+        deadline = int(depart + est_time * 1.5)
 
-        hour = random.randint(start_hour, end_hour)
-        minute = random.randint(0, 59)
-        second = random.randint(0, 59)
-        depart_seconds = hour * 3600 + minute * 60 + second
-        timestamp = f"{hour:02}:{minute:02}:{second:02}"
-
-        deliveries.append({
-            "id": f"delivery{len(deliveries)}",
-            "from_edge": from_edge.getID(),
-            "to_edge": to_edge.getID(),
-            "scheduled_time": timestamp,
-            "depart": depart_seconds,
-            "distance": int(dist),
-            "estimated_time": int(total_time)
+        agents[f"delivery{i}"].append({
+            "from": from_edge.getID(),
+            "to": to_edge.getID(),
+            "deadline": deadline
         })
 
-    deliveries.sort(key=lambda d: d["scheduled_time"])
+# 📤 Ghi file JSON
+final_data = {agent_id: {"orders": orders} for agent_id, orders in agents.items()}
 
-    if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(deliveries, f, indent=2, ensure_ascii=False)
-        print(f"✅ Đã lưu {len(deliveries)} yêu cầu giao hàng tại {output_path}")
+with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    json.dump(final_data, f, indent=2)
 
-    return deliveries
-
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--net", required=True, help="Đường dẫn tới file .net.xml")
-    parser.add_argument("--num", type=int, default=1000, help="Số lượng đơn hàng")
-    parser.add_argument("--out", required=True, help="File json output")
-    parser.add_argument("--min-distance", type=int, default=500, help="Khoảng cách tối thiểu (m)")
-    parser.add_argument("--max-distance", type=int, default=10000, help="Khoảng cách tối đa (m)")
-    parser.add_argument("--seed", type=int, default=42)
-    args = parser.parse_args()
-
-    generate_deliveries(
-        net_path=args.net,
-        num_deliveries=args.num,
-        output_path=args.out,
-        seed=args.seed,
-        min_distance=args.min_distance,
-        max_distance=args.max_distance
-    )
+print(f"✅ Đã tạo {len(final_data)} agents × {ORDERS_PER_AGENT} đơn vào {OUTPUT_PATH}")
